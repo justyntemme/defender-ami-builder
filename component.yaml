@@ -16,7 +16,7 @@ phases:
           commands:
             - >
               # Fetch secrets from AWS Secrets Manager for access and secret keys
-              SECRETS=$(aws secretsmanager get-secret-value --secret-id YourSecretIdHere --query SecretString --output text)
+              SECRETS=$(aws secretsmanager get-secret-value --secret-id PrismaCloudAuth --query SecretString --output text)
               ACCESS_KEY=$(echo $SECRETS | jq -r '.PrissmaCloudConsoleAccessKey')
               SECRET_KEY=$(echo $SECRETS | jq -r '.PrissmaCloudConsoleSecretKey')
               
