@@ -1,47 +1,31 @@
 name: PrismaCloudDefenderInstallation
-description: Install PrismaCloud Defender in a container image
+description: Install PrismaCloud Defender in a container image using secrets from AWS Secrets Manager and a parameter for the console URL
 schemaVersion: 1.0
 parameters:
-  - PrissmaCloudConsole:
+  - PrissmaCloudConsoleURL:
       type: string
       default: 'https://app0.cloud.twistlock.com/panw-app0-310'
       description: The PrismaCloud console URL.
-  - PrissmaCloudConsoleSecretKey:
-      type: string
-      default: ''
-      description: The PrismaCloud secret key.
-  - PrissmaCloudConsoleAccessKey:
-      type: string
-      default: ''
-      description: PrismaCloud access key.
-      
-      
-
 
 phases:
-  - name: SavePrismaCloudToken
-    action: ExecuteBash
-    inputs:
-    commands:
-      - >
-        TOKEN=$(curl -s -X POST "${BASE_URL}/login" -H "accept: application/json; charset=UTF-8" -H "content-type: application/json"
-        -d '{"username": "'${ACCESS_KEY}'", "password": "'${SECRET_KEY}'"}' | jq -r '.token')
-      - echo ${TOKEN} > /tmp/prisma_token.txt
-  - name: UsePrismaCloudToken
-    action: ExecuteBash
-    inputs:
-    commands:
-      - >
-        TOKEN=$(cat /tmp/prisma_token.txt)
-      - echo "Using PRISMA token: ${TOKEN}"
-
   - name: build
     steps:
-      - name: DownloadPrismaCloudDefender
+      - name: FetchSecretsAndInstallDefender
         action: ExecuteBash
         inputs:
           commands:
             - >
-              TOKEN=$(cat /tmp/prisma_token.txt)
-              curl -sSL --header "authorization: Bearer ${TOKEN}" -X POST https://app0.cloud.twistlock.com/panw-app0-310/api/v1/scripts/defender.sh | sudo bash -s -- -c "app0.cloud.twistlock.com" -v
+              # Fetch secrets from AWS Secrets Manager for access and secret keys
+              SECRETS=$(aws secretsmanager get-secret-value --secret-id YourSecretIdHere --query SecretString --output text)
+              ACCESS_KEY=$(echo $SECRETS | jq -r '.PrissmaCloudConsoleAccessKey')
+              SECRET_KEY=$(echo $SECRETS | jq -r '.PrissmaCloudConsoleSecretKey')
+              
+              # Use the PrissmaCloudConsoleURL parameter for the BASE_URL
+              BASE_URL=${PrissmaCloudConsoleURL}
+              
+              # Login to Prisma Cloud and get token
+              TOKEN=$(curl -s -X POST "${BASE_URL}/login" -H "accept: application/json; charset=UTF-8" -H "content-type: application/json" -d "{\"username\": \"${ACCESS_KEY}\", \"password\": \"${SECRET_KEY}\"}" | jq -r '.token')
+              
+              # Use token to download and install PrismaCloud Defender
+              curl -sSL --header "authorization: Bearer ${TOKEN}" -X POST ${BASE_URL}/api/v1/scripts/defender.sh | sudo bash -s -- -c "${BASE_URL}" -v
 
